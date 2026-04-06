@@ -12,7 +12,7 @@ const app = express();
 // Security
 app.use(helmet());
 app.use(cors({
-  origin: "*",
+  origin: ["http://localhost:8080", "http://localhost:3000", "https://riskmgmt.ezrisk.in", "https://ezrisk-risk-assetmgmt.web.app"],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   credentials: true,
