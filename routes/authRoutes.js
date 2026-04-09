@@ -38,6 +38,7 @@ router.post("/register", async (req, res) => {
       email,
       password,
       role: "client",
+      userType: "client",
       companyId: company._id,
       assignedModules: DEFAULT_CLIENT_MODULES,
       isApproved: false,
@@ -57,6 +58,51 @@ router.post("/register", async (req, res) => {
   }
 });
 
+// POST /api/auth/company-register - Alias for /register (Company Registration)
+router.post("/company-register", async (req, res) => {
+  // Forward to the same logic as /register
+  try {
+    const { name, email, password, companyName, companyEmail, companyPhone, companyAddress } = req.body;
+
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ error: "Email already registered" });
+
+    // Create company
+    const company = new Company({
+      name: companyName,
+      email: companyEmail || email,
+      phone: companyPhone,
+      address: companyAddress,
+      isApproved: false,
+    });
+    await company.save();
+
+    // Create user as superadmin for the company
+    const user = new User({
+      name,
+      email,
+      password,
+      role: "superadmin",
+      userType: "client",
+      companyId: company._id,
+      assignedModules: ["all"],
+      isApproved: false,
+      isVerified: true,
+      emailVerifiedAt: new Date(),
+    });
+    await user.save();
+
+    company.createdBy = user._id;
+    await company.save();
+
+    res.status(201).json({
+      message: "Company registration successful. Please wait for OSA Super Admin approval before login.",
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
   try {
@@ -68,15 +114,37 @@ router.post("/login", async (req, res) => {
     if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
     if (user.role !== "superadmin") {
-      if (!user.isApproved || user.companyId?.isApproved === false) {
+      // Company sub-admin must have company assigned and approved
+      if (user.userType === "client" && user.role === "subadmin") {
+        if (!user.companyId) {
+          return res.status(403).json({ error: "No company assigned to this account." });
+        }
+        if (!user.isApproved || user.companyId?.isApproved === false) {
+          return res.status(403).json({ error: "Your account or company is pending approval." });
+        }
+      } else if (!user.isApproved || user.companyId?.isApproved === false) {
         return res.status(403).json({ error: "Your company is pending Super Admin approval." });
       }
     }
 
     const token = generateToken(user);
+    
+    // Build user response with companyId
+    const userResponse = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      userType: user.userType || "client",
+      companyId: user.companyId?._id || user.companyId,
+      assignedModules: user.assignedModules,
+      isApproved: user.isApproved,
+      isVerified: user.isVerified,
+    };
+    
     res.json({
       token,
-      user: user.toJSON(),
+      user: userResponse,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -159,6 +227,25 @@ router.post("/set-password", async (req, res) => {
     await user.save();
 
     res.json({ message: "Password set successfully. You can now login." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/verify-token - Verify reset token and get user info
+router.get("/verify-token", async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ error: "Token required" });
+
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() },
+    }).select("name email userType role");
+
+    if (!user) return res.status(400).json({ error: "Invalid or expired token" });
+
+    res.json({ user: { name: user.name, email: user.email, userType: user.userType, role: user.role } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

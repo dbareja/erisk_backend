@@ -11,9 +11,34 @@ const userSchema = new mongoose.Schema(
       enum: ["superadmin", "subadmin", "client"],
       default: "client",
     },
+    userType: {
+      type: String,
+      enum: ["osa", "client"],
+      default: "client",
+    },
+    userCategory: {
+      type: String,
+      enum: ["superadmin", "subadmin", "internal", "auditor", "auditee", "general"],
+      default: "general",
+    },
+    parentCompany: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+    },
     companyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Company",
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "failed"],
+      default: "pending",
+    },
+    paymentVerifiedAt: { type: Date },
+    allocatedResources: {
+      maxUsers: { type: Number, default: 0 },
+      maxAssets: { type: Number, default: 0 },
+      maxRisks: { type: Number, default: 0 },
     },
     assignedModules: {
       type: [String],

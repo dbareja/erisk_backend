@@ -18,6 +18,8 @@ const Treatment = require("../models/Treatment");
 
 const { authenticate, authorize } = require("../middleware/auth");
 
+const { sendSubAdminInviteEmail } = require("../utils/emailService");
+
 
 
 // All admin routes require authentication + superadmin or subadmin role
@@ -85,6 +87,38 @@ router.patch("/companies/:id/approve", authorize("superadmin"), async (req, res)
 
 
     res.json({ message: `Company ${isApproved ? "approved" : "rejected"}`, company });
+
+  } catch (err) {
+
+    res.status(500).json({ error: err.message });
+
+  }
+
+});
+
+
+
+// PATCH activate/deactivate company (toggle status)
+
+router.patch("/companies/:id/status", authorize("superadmin"), async (req, res) => {
+
+  try {
+
+    const { isActive } = req.body;
+
+    const company = await Company.findByIdAndUpdate(
+
+      req.params.id,
+
+      { isActive, updatedAt: new Date() },
+
+      { new: true }
+
+    );
+
+    if (!company) return res.status(404).json({ error: "Company not found" });
+
+    res.json({ message: `Company ${isActive ? "activated" : "deactivated"}`, company });
 
   } catch (err) {
 
@@ -194,7 +228,7 @@ router.post("/users/create-subadmin", authorize("superadmin"), async (req, res) 
 
   try {
 
-    const { email, companyId, assignedModules } = req.body;
+    const { email, companyId, assignedModules, userType } = req.body;
 
 
 
@@ -222,7 +256,9 @@ router.post("/users/create-subadmin", authorize("superadmin"), async (req, res) 
 
       role: "subadmin",
 
-      companyId,
+      userType: userType || "client",
+
+      companyId: userType === "osa" ? null : companyId,
 
       assignedModules: assignedModules || [],
 
@@ -240,11 +276,23 @@ router.post("/users/create-subadmin", authorize("superadmin"), async (req, res) 
 
     await user.save();
 
+    // Send email with set-password link
 
+    const setPasswordLink = `/set-password?token=${setPasswordToken}`;
 
-    // In production, send email with link: /set-password?token=setPasswordToken
+    try {
 
-    // For now, return the token
+      await sendSubAdminInviteEmail(email, setPasswordLink, user.name);
+
+      console.log(`📧 Sub-admin invite email sent to: ${email}`);
+
+    } catch (emailErr) {
+
+      console.error("❌ Failed to send email:", emailErr.message);
+
+      // Continue even if email fails - user is still created
+
+    }
 
     res.status(201).json({
 

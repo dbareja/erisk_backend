@@ -26,6 +26,7 @@ const assetSchema = new mongoose.Schema(
     reviewer: { type: String },
     reviewDate: { type: Date },
     status: { type: String, enum: ["Active", "Inactive", "Under Review"], default: "Active" },
+    licenseDetails: { type: String },
   },
   { timestamps: true }
 );
