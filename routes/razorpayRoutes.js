@@ -1,30 +1,23 @@
 const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
+const Razorpay = require("razorpay");
 const Payment = require("../models/Payment");
 const Company = require("../models/Company");
 const User = require("../models/User");
 
-// Razorpay configuration
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_test_YourKeyID";
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "YourKeySecret";
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 
 // POST /api/payments/create-order - Create Razorpay order
 router.post("/create-order", async (req, res) => {
   try {
     const { amount, currency = "INR", receipt } = req.body;
 
-    // For test mode, return mock order
-    const mockOrder = {
-      id: `order_${Date.now()}`,
-      entity: "order",
-      amount: amount,
-      currency: currency,
-      receipt: receipt,
-      status: "created",
-    };
-
-    res.json(mockOrder);
+    const order = await razorpay.orders.create({ amount, currency, receipt });
+    res.json(order);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -41,13 +34,15 @@ router.post("/verify", async (req, res) => {
       amount,
     } = req.body;
 
-    // For test mode, skip signature verification
-    // In production, verify signature:
-    // const body = razorpay_order_id + "|" + razorpay_payment_id;
-    // const expectedSignature = crypto.createHmac('sha256', RAZORPAY_KEY_SECRET).update(body).digest('hex');
-    // if (expectedSignature !== razorpay_signature) {
-    //   return res.status(400).json({ error: "Invalid signature" });
-    // }
+    // Verify signature
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest("hex");
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ error: "Invalid payment signature" });
+    }
 
     // Find company by email
     const company = await Company.findOne({ email: companyEmail });

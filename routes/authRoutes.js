@@ -60,12 +60,19 @@ router.post("/register", async (req, res) => {
 
 // POST /api/auth/company-register - Alias for /register (Company Registration)
 router.post("/company-register", async (req, res) => {
-  // Forward to the same logic as /register
   try {
     const { name, email, password, companyName, companyEmail, companyPhone, companyAddress } = req.body;
 
     const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ error: "Email already registered" });
+    if (existing) {
+      // Allow re-registration only if previous attempt was incomplete (not approved + payment pending)
+      if (existing.isApproved || existing.paymentStatus === "paid") {
+        return res.status(400).json({ error: "Email already registered" });
+      }
+      // Cleanup incomplete registration
+      await Company.findByIdAndDelete(existing.companyId);
+      await existing.deleteOne();
+    }
 
     // Create company
     const company = new Company({
