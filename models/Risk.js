@@ -13,7 +13,7 @@ const riskSchema = new mongoose.Schema(
 
     // Asset Info
     assetId: { type: String },
-    assetName: { type: String },
+    assetGroups: [{ type: String }],
     assetType: { type: String },
 
     // CIA from asset (auto-fetched)
@@ -44,24 +44,14 @@ const riskSchema = new mongoose.Schema(
     primaryControl: {
       existingControls: { type: String },
       implementationParameter: { type: String },
-      controlNature: { type: Number, default: 2 },
-      controlType: { type: Number, default: 1 },
-      cce: { type: Number, default: 1 },
-      controlValue: { type: Number },
-      controlRanking: { type: String },
-      controlRankingValue: { type: Number },
+      controlEffectiveness: { type: String, enum: ["Effective", "Partially Effective", "Ineffective"] },
     },
 
     // Compensatory Control
     compensatoryControl: {
       existingControls: { type: String },
       implementationParameter: { type: String },
-      controlNature: { type: Number, default: 2 },
-      controlType: { type: Number, default: 1 },
-      cce: { type: Number, default: 1 },
-      controlValue: { type: Number },
-      controlRanking: { type: String },
-      controlRankingValue: { type: Number },
+      controlEffectiveness: { type: String, enum: ["Effective", "Partially Effective", "Ineffective"] },
     },
 
     // Final Risk
@@ -76,9 +66,9 @@ const riskSchema = new mongoose.Schema(
     treatmentCompletionDate: { type: Date },
     treatmentResponsibleEmail: { type: String },
     treatmentResponsiblePhone: { type: String },
-    rtpReference: { type: String },
-    actualDate: { type: Date },
+    treatmentStatus: { type: String, enum: ["Open", "In Progress", "Delayed", "Completed"] },
     riskAcceptanceNotes: { type: String },
+    businessJustification: { type: String },
 
     // Owner
     riskOwner: { type: String },
@@ -93,47 +83,17 @@ riskSchema.pre("validate", async function (next) {
     this.riskId = `R-${String(count + 1).padStart(3, "0")}`;
   }
 
-  // TV
-  this.tvValue = this.tValue + this.vValue;
-  if (this.tvValue < 3) this.tvPair = 1;
-  else if (this.tvValue < 5) this.tvPair = 2;
-  else if (this.tvValue < 7) this.tvPair = 3;
-  else this.tvPair = 4;
-
-  // Absolute RIR
-  this.absoluteRIR = this.assetValue * this.tvPair * this.probability;
-  this.riskImpactRating =
-    this.absoluteRIR >= 16 ? "Critical" : this.absoluteRIR >= 9 ? "High" : this.absoluteRIR >= 4 ? "Medium" : "Low";
-
-  // Control calculations
-  const calcCV = (cn, ct, cce) => cn * ct * cce;
-  const calcCR = (cv) => {
-    if (cv < 7) return 1;
-    if (cv < 13) return 2;
-    if (cv < 19) return 3;
-    return 4;
-  };
-  const crLabel = (cr) => (cr <= 1 ? "D" : cr === 2 ? "C" : cr === 3 ? "B" : "A");
-
-  if (this.primaryControl) {
-    const cv = calcCV(this.primaryControl.controlNature, this.primaryControl.controlType, this.primaryControl.cce);
-    this.primaryControl.controlValue = cv;
-    this.primaryControl.controlRankingValue = calcCR(cv);
-    this.primaryControl.controlRanking = crLabel(calcCR(cv));
-  }
-  if (this.compensatoryControl) {
-    const cv = calcCV(this.compensatoryControl.controlNature, this.compensatoryControl.controlType, this.compensatoryControl.cce);
-    this.compensatoryControl.controlValue = cv;
-    this.compensatoryControl.controlRankingValue = calcCR(cv);
-    this.compensatoryControl.controlRanking = crLabel(calcCR(cv));
-  }
-
-  // Revised RIR
-  const pcr = this.primaryControl?.controlRankingValue || 0;
-  const ccp = this.compensatoryControl?.controlRankingValue || 0;
-  this.revisedRIR = (pcr + ccp) > 0 ? parseFloat(((this.probability * this.impact) / (pcr + ccp)).toFixed(2)) : this.probability * this.impact;
-  this.riskPriority =
-    this.revisedRIR >= 16 ? "Critical" : this.revisedRIR >= 9 ? "High" : this.revisedRIR >= 4 ? "Medium" : "Low";
+  // Risk Score = Inherent Likelihood * Business Impact (max 25)
+  const riskScore = this.probability * this.impact;
+  this.revisedRIR = riskScore;
+  
+  // Risk Priority based on score ranges
+  if (riskScore >= 1 && riskScore <= 3) this.riskPriority = "Very Low";
+  else if (riskScore >= 4 && riskScore <= 6) this.riskPriority = "Low";
+  else if (riskScore >= 8 && riskScore <= 12) this.riskPriority = "Medium";
+  else if (riskScore >= 15 && riskScore <= 16) this.riskPriority = "High";
+  else if (riskScore >= 20 && riskScore <= 25) this.riskPriority = "Critical";
+  else this.riskPriority = "Unknown";
 
   next();
 });

@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const companySchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
+    slug: { type: String, unique: true, sparse: true }, // url-friendly name e.g. "tata"
+    accountType: { type: String, enum: ["company", "individual"], default: "company" },
     email: { type: String, required: true },
     phone: { type: String },
     address: { type: String },

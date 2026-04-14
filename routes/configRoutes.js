@@ -280,6 +280,13 @@ router.post("/seed/defaults", authorize("superadmin"), async (req, res) => {
 
       { type: "asset_type", name: "Office Equipment", description: "General office equipment" },
 
+      // Asset Groups
+      { type: "asset_group", name: "Business Applications", description: "Core business applications" },
+      { type: "asset_group", name: "Infrastructure", description: "IT infrastructure components" },
+      { type: "asset_group", name: "Security Systems", description: "Security and access control systems" },
+      { type: "asset_group", name: "Network Devices", description: "Network infrastructure devices" },
+      { type: "asset_group", name: "Storage Systems", description: "Data storage solutions" },
+
       // Departments
 
       { type: "department", name: "IT", description: "Information Technology", metadata: { code: "IT" } },

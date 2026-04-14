@@ -5,6 +5,7 @@ const router = express.Router();
 const User = require("../models/User");
 const Company = require("../models/Company");
 const { authenticate, JWT_SECRET, DEFAULT_CLIENT_MODULES } = require("../middleware/auth");
+const { sendOSARegistrationNotification } = require("../utils/emailService");
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -58,25 +59,32 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// POST /api/auth/company-register - Alias for /register (Company Registration)
+// POST /api/auth/company-register
 router.post("/company-register", async (req, res) => {
   try {
-    const { name, email, password, companyName, companyEmail, companyPhone, companyAddress } = req.body;
+    const { name, email, password, companyName, companyEmail, companyPhone, companyAddress, accountType } = req.body;
 
     const existing = await User.findOne({ email });
     if (existing) {
-      // Allow re-registration only if previous attempt was incomplete (not approved + payment pending)
       if (existing.isApproved || existing.paymentStatus === "paid") {
         return res.status(400).json({ error: "Email already registered" });
       }
-      // Cleanup incomplete registration
       await Company.findByIdAndDelete(existing.companyId);
       await existing.deleteOne();
     }
 
-    // Create company
+    // Generate unique slug from company name
+    const baseSlug = (companyName || name).toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    let slug = baseSlug;
+    let counter = 1;
+    while (await Company.findOne({ slug })) {
+      slug = `${baseSlug}-${counter++}`;
+    }
+
     const company = new Company({
-      name: companyName,
+      name: companyName || name,
+      slug,
+      accountType: accountType || "company",
       email: companyEmail || email,
       phone: companyPhone,
       address: companyAddress,
@@ -84,7 +92,6 @@ router.post("/company-register", async (req, res) => {
     });
     await company.save();
 
-    // Create user as superadmin for the company
     const user = new User({
       name,
       email,
@@ -102,8 +109,17 @@ router.post("/company-register", async (req, res) => {
     company.createdBy = user._id;
     await company.save();
 
+    // Notify OSA Super Admin
+    const adminLoginUrl = `${process.env.FRONTEND_URL}/osa/superadmin/login`;
+    try {
+      await sendOSARegistrationNotification(company.name, company.email, company.accountType, adminLoginUrl);
+    } catch (e) {
+      console.error("OSA notification email failed:", e.message);
+    }
+
     res.status(201).json({
-      message: "Company registration successful. Please wait for OSA Super Admin approval before login.",
+      message: "Registration successful. Please complete payment. OSA Super Admin will approve your account.",
+      slug,
     });
   } catch (err) {
     res.status(400).json({ error: err.message });

@@ -7,7 +7,7 @@ const assetSchema = new mongoose.Schema(
     name: { type: String, required: true },
     category: { type: String, required: true },
     assetType: { type: String },
-    group: { type: String },
+    groups: [{ type: String }],
     description: { type: String },
     department: { type: String },
     location: { type: String },

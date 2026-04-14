@@ -10,6 +10,7 @@ const configSchema = new mongoose.Schema(
         "asset_category",
         "asset_classification",
         "asset_type",
+        "asset_group",
         "retention_period",
         "department",
         "location",
