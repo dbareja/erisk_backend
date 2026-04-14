@@ -38,19 +38,30 @@ router.get("/pending-registrations", authorize("superadmin", "subadmin"), async 
 // PATCH approve/reject company - sends approval email with login URL
 router.patch("/companies/:id/approve", authorize("superadmin"), async (req, res) => {
   try {
+    console.log(`🔔 APPROVE API CALLED - Company ID: ${req.params.id}, isApproved: ${req.body.isApproved}`);
+    
     const { isApproved } = req.body;
     const company = await Company.findByIdAndUpdate(req.params.id, { isApproved }, { new: true });
-    if (!company) return res.status(404).json({ error: "Company not found" });
+    if (!company) {
+      console.log(`❌ Company not found: ${req.params.id}`);
+      return res.status(404).json({ error: "Company not found" });
+    }
+    console.log(`✅ Company updated: ${company.name}, isApproved: ${isApproved}`);
 
     await User.updateMany({ companyId: company._id }, { isApproved });
+    console.log(`✅ Users updated for company: ${company._id}`);
 
     // Send approval email
     if (isApproved) {
+      console.log(`📧 isApproved=true, starting email process...`);
+      
       // Find the superadmin user of this company to get their email too
       const superAdmin = await User.findOne({ companyId: company._id, role: "superadmin" });
+      console.log(`👤 SuperAdmin found: ${superAdmin?.email || 'NOT FOUND'}`);
       
       // If slug missing, generate it now
       if (!company.slug) {
+        console.log(`⚠️ Company slug missing, generating...`);
         const baseSlug = company.name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
         let slug = baseSlug;
         let counter = 1;
@@ -59,24 +70,34 @@ router.patch("/companies/:id/approve", authorize("superadmin"), async (req, res)
         }
         company.slug = slug;
         await company.save();
+        console.log(`✅ Slug generated: ${slug}`);
       }
 
       // Send to both company email and superadmin email
       const emailsToNotify = [...new Set([company.email, superAdmin?.email].filter(Boolean))];
-      console.log(`📧 Sending approval emails to: ${emailsToNotify.join(", ")}`);
+      console.log(`📧 Total emails to send: ${emailsToNotify.length}`);
+      console.log(`📧 Email list: ${emailsToNotify.join(", ")}`);
       console.log(`🔗 Login URL: ${process.env.FRONTEND_URL}/${company.slug}/login`);
+      
       for (const email of emailsToNotify) {
+        console.log(`📧 Sending approval email to: ${email}...`);
         try {
           await sendApprovalEmail(email, company.name, company.slug, company.accountType || "company");
-          console.log(`✅ Approval email sent to: ${email}`);
+          console.log(`✅ Approval email SENT SUCCESSFULLY to: ${email}`);
         } catch (e) {
-          console.error(`❌ Approval email failed for ${email}:`, e.message);
+          console.error(`❌ Approval email FAILED for ${email}:`, e.message);
+          console.error(`❌ Error stack:`, e.stack);
         }
       }
+    } else {
+      console.log(`ℹ️ isApproved=false, skipping email`);
     }
 
     res.json({ message: `Company ${isApproved ? "approved" : "rejected"}`, company });
+    console.log(`✅ API response sent successfully`);
   } catch (err) {
+    console.error(`❌ APPROVE API ERROR:`, err.message);
+    console.error(`❌ Error stack:`, err.stack);
     res.status(500).json({ error: err.message });
   }
 });
