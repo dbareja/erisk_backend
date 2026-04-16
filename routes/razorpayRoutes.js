@@ -26,6 +26,7 @@ router.post("/create-order", async (req, res) => {
 // POST /api/payments/verify - Verify Razorpay payment
 router.post("/verify", async (req, res) => {
   try {
+    console.log("🔔 RAZORPAY VERIFY API CALLED");
     const {
       razorpay_order_id,
       razorpay_payment_id,
@@ -34,37 +35,50 @@ router.post("/verify", async (req, res) => {
       amount,
     } = req.body;
 
+    console.log("📧 Company Email received:", companyEmail);
+    console.log("💰 Amount:", amount);
+
     // Verify signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(body)
       .digest("hex");
+    
     if (expectedSignature !== razorpay_signature) {
+      console.error("❌ Signature mismatch");
       return res.status(400).json({ error: "Invalid payment signature" });
     }
+    console.log("✅ Signature verified");
 
     // Find company by email
     const company = await Company.findOne({ email: companyEmail });
+    console.log("🔍 Company lookup result:", company ? company.name : "NOT FOUND");
     if (!company) {
+      console.error("❌ Company not found for email:", companyEmail);
       return res.status(404).json({ error: "Company not found" });
     }
 
     // Update company payment status
+    console.log("💾 Updating company payment status to 'paid'");
     company.paymentStatus = "paid";
     company.paymentVerifiedAt = new Date();
     await company.save();
+    console.log("✅ Company updated:", company.name, "paymentStatus:", company.paymentStatus);
 
     // Find and update user
     const user = await User.findOne({ email: companyEmail });
+    console.log("👤 User found:", user ? user.email : "NOT FOUND");
     if (user) {
       user.paymentStatus = "paid";
       user.paymentVerifiedAt = new Date();
       await user.save();
+      console.log("✅ User updated");
     }
 
     // Create payment record
-    await Payment.create({
+    console.log("💾 Creating payment record");
+    const paymentRecord = await Payment.create({
       companyId: company._id,
       userId: user ? user._id : null,
       amount: parseInt(amount),
@@ -74,6 +88,7 @@ router.post("/verify", async (req, res) => {
       status: "completed",
       method: "razorpay",
     });
+    console.log("✅ Payment record created:", paymentRecord._id);
 
     res.json({
       success: true,
