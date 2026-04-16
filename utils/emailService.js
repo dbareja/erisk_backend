@@ -135,8 +135,45 @@ const sendApprovalEmail = async (toEmail, companyName, slug, accountType) => {
   }
 };
 
+// Email to company user when invited by company superadmin
+const sendCompanyUserInviteEmail = async (email, setPasswordLink, name, role, companyName) => {
+  try {
+    const fullLink = `${process.env.FRONTEND_URL}${setPasswordLink}`;
+    console.log(`📧 Sending company user invite to: ${email}`);
+    const result = await transporter.sendMail({
+      from: `"EzRisk Management" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `You've Been Invited to ${companyName} - Set Your Password`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px;">
+          <h2 style="color:#4f46e5;">Welcome to ${companyName}!</h2>
+          <p>Hello ${name || "User"},</p>
+          <p>You have been invited to join <strong>${companyName}</strong> on the EzRisk Management platform as a <strong>${role || "User"}</strong>.</p>
+          <p>To get started, please set your password by clicking the button below:</p>
+          <div style="text-align:center;margin:30px 0;">
+            <a href="${fullLink}" style="background-color:#4f46e5;color:white;padding:12px 30px;text-decoration:none;border-radius:6px;display:inline-block;">
+              Set Your Password
+            </a>
+          </div>
+          <p>Or copy and paste this link:</p>
+          <p style="background-color:#f3f4f6;padding:10px;border-radius:4px;word-break:break-all;">${fullLink}</p>
+          <p><strong>Note:</strong> This link will expire in 7 days.</p>
+          <hr style="margin:30px 0;border:none;border-top:1px solid #e0e0e0;">
+          <p style="font-size:12px;color:#6b7280;">If you did not expect this invitation, please ignore this email.</p>
+        </div>
+      `,
+    });
+    console.log(`✅ Company user invite sent: ${result.messageId}`);
+    return result;
+  } catch (error) {
+    console.error(`❌ Company user invite failed:`, error.message);
+    throw error;
+  }
+};
+
 module.exports = {
   sendSubAdminInviteEmail,
   sendOSARegistrationNotification,
   sendApprovalEmail,
+  sendCompanyUserInviteEmail,
 };

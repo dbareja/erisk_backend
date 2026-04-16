@@ -293,19 +293,19 @@ router.get("/stats", authorize("superadmin", "subadmin"), async (req, res) => {
     let filter = {};
     if (req.user.role === "subadmin") filter.companyId = req.user.companyId;
 
-    const [totalCompanies, totalUsers, totalAssets, totalRisks, totalControls, totalTreatments, pendingCompanies, pendingUsers] =
+    const [totalCompanies, totalUsers, totalAssets, totalRisks, pendingPayments, pendingCompanies, pendingUsers] =
       await Promise.all([
         Company.countDocuments(),
         User.countDocuments(filter),
         Asset.countDocuments(filter),
         Risk.countDocuments(filter),
-        Control.countDocuments(filter),
-        Treatment.countDocuments(filter),
+        // Count companies with pending payment (not paid)
+        Company.countDocuments({ paymentStatus: { $ne: "paid" } }),
         Company.countDocuments({ isApproved: false }),
         User.countDocuments({ isApproved: false, role: { $ne: "superadmin" } }),
       ]);
 
-    res.json({ totalCompanies, totalUsers, totalAssets, totalRisks, totalControls, totalTreatments, pendingCompanies, pendingUsers });
+    res.json({ totalCompanies, totalUsers, totalAssets, totalRisks, pendingPayments, pendingCompanies, pendingUsers });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
