@@ -299,8 +299,8 @@ router.get("/stats", authorize("superadmin", "subadmin"), async (req, res) => {
         User.countDocuments(filter),
         Asset.countDocuments(filter),
         Risk.countDocuments(filter),
-        // Count companies with pending payment (not paid)
-        Company.countDocuments({ paymentStatus: { $ne: "paid" } }),
+        // Count companies with payment completed but pending OSA approval
+        Company.countDocuments({ paymentStatus: "paid", isApproved: false }),
         Company.countDocuments({ isApproved: false }),
         User.countDocuments({ isApproved: false, role: { $ne: "superadmin" } }),
       ]);
