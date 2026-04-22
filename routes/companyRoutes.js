@@ -87,10 +87,10 @@ router.post('/users', protect, restrictTo('superadmin'), async (req, res) => {
       isApproved: true,
       isVerified: false, // User needs to set password to verify
       userType: 'client',
-      userCategory: role === 'subadmin' ? 'subadmin' : 'user',
+      userCategory: role,
       parentCompany: companyId,
-      passwordResetToken: hashedToken,
-      passwordResetExpires: tokenExpires
+      resetPasswordToken: inviteToken,
+      resetPasswordExpires: tokenExpires
     });
 
     await user.save();

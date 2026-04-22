@@ -9,7 +9,9 @@ router.use(companyScope);
 
 router.get("/", async (req, res) => {
   try {
+    console.log(`📋 GET /risks - User: ${req.user.email}, Role: ${req.user.role}, Filter:`, JSON.stringify(req.companyFilter));
     const risks = await Risk.find(req.companyFilter).sort({ createdAt: -1 });
+    console.log(`📋 GET /risks - Found ${risks.length} risks`);
     res.json(risks);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -29,8 +31,9 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.user.companyId) {
-      data.companyId = req.user.companyId._id || req.user.companyId;
+    const userCompanyId = req.user.companyId?._id || req.user.companyId || req.user.parentCompany;
+    if (userCompanyId) {
+      data.companyId = userCompanyId;
     }
     const risk = new Risk(data);
     await risk.save();

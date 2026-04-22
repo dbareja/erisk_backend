@@ -151,6 +151,8 @@ app.use("/api/config", require("./routes/configRoutes"));
 app.use("/api/company", require("./routes/companyRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
 app.use("/api/payments", require("./routes/razorpayRoutes"));
+app.use("/api/audit", require("./routes/auditRoutes"));
+app.use("/api/auditor-data", require("./routes/auditorDataRoutes"));
 
 // Health Check
 app.get("/api/health", (req, res) => {

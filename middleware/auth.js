@@ -11,7 +11,7 @@ const authenticate = async (req, res, next) => {
     if (!token) return res.status(401).json({ error: "No token provided" });
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(decoded.id).populate("companyId");
+    const user = await User.findById(decoded.id).populate("companyId").populate("parentCompany");
     if (!user) return res.status(401).json({ error: "User not found" });
 
     if (user.role !== "superadmin") {
@@ -40,7 +40,8 @@ const authorize = (...roles) => {
 // Module check middleware - check if user has access to module
 const checkModule = (moduleName) => {
   return (req, res, next) => {
-    if (req.user.role === "superadmin") return next();
+    // Superadmin and auditor can access all modules
+    if (req.user.role === "superadmin" || req.user.role === "auditor") return next();
 
     const assignedModules = req.user.role === "client"
       ? DEFAULT_CLIENT_MODULES
@@ -54,18 +55,36 @@ const checkModule = (moduleName) => {
   };
 };
 
+const resolveUserCompanyId = (user) => {
+  // companyId may be populated (full Company doc) or a plain ObjectId
+  if (user?.companyId) {
+    if (typeof user.companyId === "object" && user.companyId._id) {
+      return user.companyId._id;
+    }
+    return user.companyId;
+  }
+  // Fallback to parentCompany (used for auditors/subadmins created via company routes)
+  return user?.parentCompany || null;
+};
+
 // Company scope middleware - filter data by companyId for clients
 const companyScope = (req, res, next) => {
-  if (req.user.role === "superadmin") {
-    // Superadmin sees all, optionally filter by query param
+  const { role, userType } = req.user;
+  
+  // OSA admin/subadmin can see all companies, optionally filter by query param
+  if (userType === "osa" && (role === "superadmin" || role === "subadmin")) {
     if (req.query.companyId) {
       req.companyFilter = { companyId: req.query.companyId };
     } else {
       req.companyFilter = {};
     }
   } else {
-    // Sub-admin and client only see their company data
-    req.companyFilter = { companyId: req.user.companyId?._id || req.user.companyId };
+    // All client users (superadmin, subadmin, auditor, etc.) only see their company data
+    const userCompanyId = resolveUserCompanyId(req.user);
+    if (!userCompanyId) {
+      console.warn(`⚠️ companyScope: No companyId found for user ${req.user.email} (role: ${role}). Data will be empty.`);
+    }
+    req.companyFilter = userCompanyId ? { companyId: userCompanyId } : { _id: null };
   }
   next();
 };

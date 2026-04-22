@@ -245,6 +245,8 @@ router.post("/set-password", async (req, res) => {
 
     user.password = password;
     if (name) user.name = name;
+    user.isVerified = true;
+    user.emailVerifiedAt = new Date();
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();

@@ -32,8 +32,9 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const data = { ...req.body };
-    if (req.user.companyId) {
-      data.companyId = req.user.companyId._id || req.user.companyId;
+    const userCompanyId = req.user.companyId?._id || req.user.companyId || req.user.parentCompany;
+    if (userCompanyId) {
+      data.companyId = userCompanyId;
     }
     const asset = new Asset(data);
     await asset.save();
