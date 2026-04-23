@@ -171,9 +171,49 @@ const sendCompanyUserInviteEmail = async (email, setPasswordLink, name, role, co
   }
 };
 
+// Email to Treatment Responsible Person
+const sendTreatmentAssignmentEmail = async (email, riskName, riskId, treatmentPlan, targetDate, companyName) => {
+  try {
+    if (!email) return null;
+    console.log(`📧 Sending treatment assignment to: ${email}`);
+    const result = await transporter.sendMail({
+      from: `"EzRisk Management" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `Action Required: Risk Treatment Assigned - ${riskName}`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px;">
+          <h2 style="color:#d97706;">Risk Treatment Assigned</h2>
+          <p>Hello,</p>
+          <p>You have been assigned as the responsible person for a risk treatment plan in <strong>${companyName || "your company"}</strong>.</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+            <tr><td style="padding:8px;background:#f9fafb;font-weight:bold;width:30%;">Risk ID</td><td style="padding:8px;">${riskId || "N/A"}</td></tr>
+            <tr><td style="padding:8px;background:#f9fafb;font-weight:bold;">Risk Name</td><td style="padding:8px;">${riskName}</td></tr>
+            <tr><td style="padding:8px;background:#f9fafb;font-weight:bold;">Treatment Plan</td><td style="padding:8px;">${treatmentPlan || "See platform for details"}</td></tr>
+            <tr><td style="padding:8px;background:#f9fafb;font-weight:bold;">Target Date</td><td style="padding:8px;">${targetDate ? new Date(targetDate).toLocaleDateString() : "Not specified"}</td></tr>
+          </table>
+          <p>Please log in to the EzRisk Management platform to review and update the status of this treatment.</p>
+          <div style="text-align:center;margin:30px 0;">
+            <a href="${process.env.FRONTEND_URL}/login" style="background-color:#d97706;color:white;padding:12px 30px;text-decoration:none;border-radius:6px;display:inline-block;">
+              Login to Platform
+            </a>
+          </div>
+          <p style="font-size:12px;color:#6b7280;">EzRisk Management Platform</p>
+        </div>
+      `,
+    });
+    console.log(`✅ Treatment email sent: ${result.messageId}`);
+    return result;
+  } catch (error) {
+    console.error(`❌ Treatment email failed:`, error.message);
+    // Don't throw to prevent breaking the API response
+    return null;
+  }
+};
+
 module.exports = {
   sendSubAdminInviteEmail,
   sendOSARegistrationNotification,
   sendApprovalEmail,
   sendCompanyUserInviteEmail,
+  sendTreatmentAssignmentEmail,
 };

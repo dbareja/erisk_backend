@@ -26,6 +26,8 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+const { sendTreatmentAssignmentEmail } = require("../utils/emailService");
+
 router.post("/", async (req, res) => {
   try {
     const data = { ...req.body };
@@ -34,6 +36,19 @@ router.post("/", async (req, res) => {
     }
     const treatment = new Treatment(data);
     await treatment.save();
+
+    if (treatment.responsibleEmail) {
+      const companyName = req.user.companyId?.name || "your company";
+      sendTreatmentAssignmentEmail(
+        treatment.responsibleEmail,
+        treatment.riskName,
+        treatment.riskId,
+        treatment.plan,
+        treatment.targetDate,
+        companyName
+      );
+    }
+
     res.status(201).json(treatment);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -42,12 +57,27 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   try {
+    const oldTreatment = await Treatment.findOne({ _id: req.params.id, ...req.companyFilter });
+
     const treatment = await Treatment.findOneAndUpdate(
       { _id: req.params.id, ...req.companyFilter },
       req.body,
       { new: true, runValidators: true }
     );
     if (!treatment) return res.status(404).json({ error: "Treatment not found" });
+
+    if (treatment.responsibleEmail && (!oldTreatment || oldTreatment.responsibleEmail !== treatment.responsibleEmail)) {
+      const companyName = req.user.companyId?.name || "your company";
+      sendTreatmentAssignmentEmail(
+        treatment.responsibleEmail,
+        treatment.riskName,
+        treatment.riskId,
+        treatment.plan,
+        treatment.targetDate,
+        companyName
+      );
+    }
+
     res.json(treatment);
   } catch (err) {
     res.status(400).json({ error: err.message });

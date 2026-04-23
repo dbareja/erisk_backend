@@ -28,6 +28,8 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+const { sendTreatmentAssignmentEmail } = require("../utils/emailService");
+
 router.post("/", async (req, res) => {
   try {
     const data = { ...req.body };
@@ -37,6 +39,20 @@ router.post("/", async (req, res) => {
     }
     const risk = new Risk(data);
     await risk.save();
+
+    // Send email if treatment assigned
+    if (risk.treatmentResponsibleEmail) {
+      const companyName = req.user.companyId?.name || "your company";
+      sendTreatmentAssignmentEmail(
+        risk.treatmentResponsibleEmail,
+        risk.name,
+        risk.riskId,
+        risk.treatmentPlan,
+        risk.treatmentTargetDate,
+        companyName
+      );
+    }
+
     res.status(201).json(risk);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -45,12 +61,29 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   try {
+    // Check old risk to see if email changed or was just added
+    const oldRisk = await Risk.findOne({ _id: req.params.id, ...req.companyFilter });
+    
     const risk = await Risk.findOneAndUpdate(
       { _id: req.params.id, ...req.companyFilter },
       req.body,
       { new: true, runValidators: true }
     );
     if (!risk) return res.status(404).json({ error: "Risk not found" });
+
+    // Send email if treatment assigned and it's new or changed
+    if (risk.treatmentResponsibleEmail && (!oldRisk || oldRisk.treatmentResponsibleEmail !== risk.treatmentResponsibleEmail)) {
+      const companyName = req.user.companyId?.name || "your company";
+      sendTreatmentAssignmentEmail(
+        risk.treatmentResponsibleEmail,
+        risk.name,
+        risk.riskId,
+        risk.treatmentPlan,
+        risk.treatmentTargetDate,
+        companyName
+      );
+    }
+
     res.json(risk);
   } catch (err) {
     res.status(400).json({ error: err.message });

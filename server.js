@@ -147,6 +147,7 @@ app.use("/api/assets", require("./routes/assetRoutes"));
 app.use("/api/risks", require("./routes/riskRoutes"));
 app.use("/api/controls", require("./routes/controlRoutes"));
 app.use("/api/treatments", require("./routes/treatmentRoutes"));
+app.use("/api/search", require("./routes/searchRoutes"));
 app.use("/api/config", require("./routes/configRoutes"));
 app.use("/api/company", require("./routes/companyRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
