@@ -22,9 +22,10 @@ const companySchema = new mongoose.Schema(
       ref: "User",
     },
     allocatedResources: {
-      maxUsers: { type: Number, default: 0 },
-      maxAssets: { type: Number, default: 0 },
-      maxRisks: { type: Number, default: 0 },
+      maxUsers: { type: Number, default: 10 },
+      maxAssets: { type: Number, default: 100 },
+      maxRisks: { type: Number, default: 100 },
+      maxStorageGB: { type: Number, default: 5 },
     },
     companyType: {
       type: String,

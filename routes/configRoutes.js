@@ -84,7 +84,9 @@ const getReadFilter = (req) => {
 
 
 
-  return { $or: [{ companyId: null }, { companyId: getRequesterCompanyId(req) }] };
+  // Client users only see their own company data. No global fallback for strict isolation.
+
+  return { companyId: getRequesterCompanyId(req) };
 
 };
 

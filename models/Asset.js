@@ -2,8 +2,8 @@ const mongoose = require("mongoose");
 
 const assetSchema = new mongoose.Schema(
   {
-    assetId: { type: String, unique: true, required: true },
-    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company" },
+    assetId: { type: String, required: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", required: true },
     name: { type: String, required: true },
     category: { type: String, required: true },
     assetType: { type: String },
@@ -34,7 +34,7 @@ const assetSchema = new mongoose.Schema(
 // Auto-generate assetId
 assetSchema.pre("validate", async function (next) {
   if (!this.assetId) {
-    const count = await mongoose.model("Asset").countDocuments();
+    const count = await mongoose.model("Asset").countDocuments({ companyId: this.companyId });
     this.assetId = `A${String(count + 1).padStart(3, "0")}`;
   }
   // Auto-calculate

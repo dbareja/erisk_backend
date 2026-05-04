@@ -210,10 +210,54 @@ const sendTreatmentAssignmentEmail = async (email, riskName, riskId, treatmentPl
   }
 };
 
+// Email to company/individual right after registration with demo credentials
+const sendRegistrationWelcomeEmail = async (email, name) => {
+  try {
+    console.log(`📧 Sending welcome email to: ${email}`);
+    const result = await transporter.sendMail({
+      from: `"EzRisk Management" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Welcome to EzRisk! Your Demo Credentials Inside",
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e0e0e0;border-radius:8px;">
+          <h2 style="color:#4f46e5;">Welcome to EzRisk Management, ${name}!</h2>
+          <p>Thank you for registering with EzRisk. Your application has been received and is currently under review by our OSA Team.</p>
+          
+          <div style="background-color:#f8fafc;padding:20px;border-radius:12px;border:1px solid #e2e8f0;margin:20px 0;">
+            <h3 style="color:#1e293b;margin-top:0;">🚀 Start Exploring Instantly</h3>
+            <p style="font-size:14px;color:#64748b;">While we prepare your dedicated live portal, you can explore the platform using these demo credentials:</p>
+            <table style="width:100%;margin-top:15px;">
+              <tr><td style="font-weight:bold;color:#475569;width:30%;">Demo URL:</td><td style="color:#4f46e5;">riskmgmt.ezrisk.in/demo-company/login</td></tr>
+              <tr><td style="font-weight:bold;color:#475569;">Email:</td><td style="color:#1e293b;">demo@ezrisk.in</td></tr>
+              <tr><td style="font-weight:bold;color:#475569;">Password:</td><td style="color:#1e293b;">Demo@123</td></tr>
+            </table>
+          </div>
+
+          <p><strong>Next Steps:</strong></p>
+          <ol>
+            <li>Explore the platform using the demo credentials above.</li>
+            <li>Complete your registration payment (if not already done).</li>
+            <li>Once approved (within 24h), you'll receive your unique company URL.</li>
+          </ol>
+
+          <hr style="margin:30px 0;border:none;border-top:1px solid #e0e0e0;">
+          <p style="font-size:12px;color:#6b7280;">This is an automated message. Please do not reply to this email.</p>
+        </div>
+      `,
+    });
+    console.log(`✅ Welcome email sent: ${result.messageId}`);
+    return result;
+  } catch (error) {
+    console.error(`❌ Welcome email failed:`, error.message);
+    return null;
+  }
+};
+
 module.exports = {
   sendSubAdminInviteEmail,
   sendOSARegistrationNotification,
   sendApprovalEmail,
   sendCompanyUserInviteEmail,
   sendTreatmentAssignmentEmail,
+  sendRegistrationWelcomeEmail,
 };

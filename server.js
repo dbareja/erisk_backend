@@ -35,103 +35,8 @@ const connectDB = async () => {
     });
     console.log("✅ MongoDB Connected");
 
-    // Seed default super admins
-    const User = require("./models/User");
-    
-    try {
-      // OSA Super Admin (Platform Admin)
-      const existingOSA = await User.findOne({ email: "osaadmin@ezrisk.com" });
-      if (!existingOSA) {
-        await User.create({
-          name: "OSA Super Admin",
-          email: "osaadmin@ezrisk.com",
-          password: "OSA@Admin123",
-          role: "superadmin",
-          userType: "osa",
-          isApproved: true,
-          isVerified: true,
-          emailVerifiedAt: new Date(),
-          assignedModules: ["all"],
-        });
-        console.log("✅ OSA Super Admin created (osaadmin@ezrisk.com / OSA@Admin123)");
-      } else {
-        console.log("ℹ️ OSA Super Admin already exists");
-      }
-    } catch (err) {
-      if (err.code === 11000) {
-        console.log("ℹ️ OSA Super Admin already exists (duplicate key)");
-      } else {
-        console.error("❌ Error creating OSA Super Admin:", err.message);
-      }
-    }
-    
-    try {
-      // Default Company Super Admin (for testing) - WITH COMPANY
-      const existingSA = await User.findOne({ email: "superadmin@grc.com" });
-      if (!existingSA) {
-        // First create a dummy company
-        const Company = require("./models/Company");
-        let testCompany = await Company.findOne({ email: "testcompany@grc.com" });
-        
-        if (!testCompany) {
-          testCompany = await Company.create({
-            name: "Test Company",
-            email: "testcompany@grc.com",
-            phone: "+91-9876543210",
-            address: "Test Address, Mumbai",
-            isApproved: true,
-            isActive: true,
-            paymentStatus: "paid",
-            companyType: "client",
-          });
-          console.log("✅ Test Company created");
-        }
-        
-        // Now create user with companyId
-        await User.create({
-          name: "Company Super Admin",
-          email: "superadmin@grc.com",
-          password: "Admin@123",
-          role: "superadmin",
-          userType: "client",
-          companyId: testCompany._id,
-          isApproved: true,
-          isVerified: true,
-          emailVerifiedAt: new Date(),
-          assignedModules: ["all"],
-        });
-        console.log("✅ Company Super Admin created (superadmin@grc.com / Admin@123) with linked company");
-      } else if (!existingSA.companyId) {
-        // If user exists but no companyId, update it
-        const Company = require("./models/Company");
-        let testCompany = await Company.findOne({ email: "testcompany@grc.com" });
-        
-        if (!testCompany) {
-          testCompany = await Company.create({
-            name: "Test Company",
-            email: "testcompany@grc.com",
-            phone: "+91-9876543210",
-            address: "Test Address, Mumbai",
-            isApproved: true,
-            isActive: true,
-            paymentStatus: "paid",
-            companyType: "client",
-          });
-        }
-        
-        existingSA.companyId = testCompany._id;
-        await existingSA.save();
-        console.log("✅ Company Super Admin linked to Test Company");
-      } else {
-        console.log("ℹ️ Company Super Admin already exists with company");
-      }
-    } catch (err) {
-      if (err.code === 11000) {
-        console.log("ℹ️ Company Super Admin already exists (duplicate key)");
-      } else {
-        console.error("❌ Error creating Company Super Admin:", err.message);
-      }
-    }
+    // Default admins are now managed via registration or manual seeding if needed
+
   } catch (error) {
     console.error("❌ MongoDB Error:", error.message);
     setTimeout(connectDB, 5000);
@@ -143,15 +48,17 @@ connectDB();
 // Routes
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
-app.use("/api/assets", require("./routes/assetRoutes"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
+app.use("/api/razorpay", require("./routes/razorpayRoutes"));
 app.use("/api/risks", require("./routes/riskRoutes"));
+app.use("/api/assets", require("./routes/assetRoutes"));
 app.use("/api/controls", require("./routes/controlRoutes"));
 app.use("/api/treatments", require("./routes/treatmentRoutes"));
 app.use("/api/search", require("./routes/searchRoutes"));
 app.use("/api/config", require("./routes/configRoutes"));
 app.use("/api/company", require("./routes/companyRoutes"));
+app.use("/api/payments", require("./routes/razorpayRoutes")); // Priority for Razorpay
 app.use("/api/payments", require("./routes/paymentRoutes"));
-app.use("/api/payments", require("./routes/razorpayRoutes"));
 app.use("/api/audit", require("./routes/auditRoutes"));
 app.use("/api/auditor-data", require("./routes/auditorDataRoutes"));
 

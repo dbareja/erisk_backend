@@ -51,8 +51,8 @@ router.post("/verify", async (req, res) => {
     }
     console.log("✅ Signature verified");
 
-    // Find company by email
-    const company = await Company.findOne({ email: companyEmail });
+    // Find the LATEST company by email (to avoid conflicts with older failed attempts)
+    const company = await Company.findOne({ email: companyEmail }).sort({ createdAt: -1 });
     console.log("🔍 Company lookup result:", company ? company.name : "NOT FOUND");
     if (!company) {
       console.error("❌ Company not found for email:", companyEmail);
@@ -66,8 +66,14 @@ router.post("/verify", async (req, res) => {
     await company.save();
     console.log("✅ Company updated:", company.name, "paymentStatus:", company.paymentStatus);
 
-    // Find and update user
-    const user = await User.findOne({ email: companyEmail });
+    // Also update the super admin user of this company
+    await User.updateMany({ companyId: company._id, role: "superadmin" }, {
+      paymentStatus: "paid",
+      paymentVerifiedAt: new Date()
+    });
+
+    // Find and update the LATEST user
+    const user = await User.findOne({ email: companyEmail }).sort({ createdAt: -1 });
     console.log("👤 User found:", user ? user.email : "NOT FOUND");
     if (user) {
       user.paymentStatus = "paid";
@@ -89,6 +95,20 @@ router.post("/verify", async (req, res) => {
       method: "razorpay",
     });
     console.log("✅ Payment record created:", paymentRecord._id);
+
+    // Send payment confirmation email & notification (non-blocking)
+    const { sendPaymentReceivedEmail } = require("../utils/emailService");
+    const Notification = require("../models/Notification");
+    Promise.all([
+        sendPaymentReceivedEmail(company.email, company.name),
+        new Notification({
+          title: "Payment Received",
+          message: `${company.name} has completed the registration payment.`,
+          type: "payment",
+          link: "/osa/superadmin/dashboard",
+          companyId: company._id
+        }).save()
+    ]).catch(e => console.error("Payment notifications failed:", e.message));
 
     res.json({
       success: true,

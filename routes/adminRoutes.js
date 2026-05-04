@@ -79,16 +79,15 @@ router.patch("/companies/:id/approve", authorize("superadmin"), async (req, res)
       console.log(`📧 Email list: ${emailsToNotify.join(", ")}`);
       console.log(`🔗 Login URL: ${process.env.FRONTEND_URL}/${company.slug}/login`);
       
-      for (const email of emailsToNotify) {
-        console.log(`📧 Sending approval email to: ${email}...`);
+      // Send emails asynchronously to prevent blocking the API response
+      Promise.all(emailsToNotify.map(async (email) => {
         try {
           await sendApprovalEmail(email, company.name, company.slug, company.accountType || "company");
-          console.log(`✅ Approval email SENT SUCCESSFULLY to: ${email}`);
+          console.log(`✅ Approval email SENT to: ${email}`);
         } catch (e) {
           console.error(`❌ Approval email FAILED for ${email}:`, e.message);
-          console.error(`❌ Error stack:`, e.stack);
         }
-      }
+      })).catch(err => console.error("Email batch error:", err));
     } else {
       console.log(`ℹ️ isApproved=false, skipping email`);
     }
@@ -108,6 +107,27 @@ router.patch("/companies/:id/status", authorize("superadmin"), async (req, res) 
     const company = await Company.findByIdAndUpdate(req.params.id, { isActive }, { new: true });
     if (!company) return res.status(404).json({ error: "Company not found" });
     res.json({ message: `Company ${isActive ? "activated" : "deactivated"}`, company });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch("/companies/:id/verify-payment", authorize("superadmin"), async (req, res) => {
+  try {
+    const company = await Company.findByIdAndUpdate(req.params.id, {
+      paymentStatus: "paid",
+      paymentVerifiedAt: new Date()
+    }, { new: true });
+    
+    if (!company) return res.status(404).json({ error: "Company not found" });
+    
+    // Also update the super admin user of this company
+    await User.updateMany({ companyId: company._id, role: "superadmin" }, {
+      paymentStatus: "paid",
+      paymentVerifiedAt: new Date()
+    });
+
+    res.json({ message: "Payment verified manually", company });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -211,6 +231,24 @@ router.put("/users/:id/role", authorize("superadmin"), async (req, res) => {
   }
 });
 
+// PUT /api/admin/users/:id - Update user details
+router.put("/users/:id", authorize("superadmin"), async (req, res) => {
+  try {
+    const { name, role, assignedModules, companyId } = req.body;
+    const update = {};
+    if (name) update.name = name;
+    if (role) update.role = role;
+    if (assignedModules) update.assignedModules = assignedModules;
+    if (companyId !== undefined) update.companyId = companyId;
+
+    const user = await User.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json({ message: "User updated successfully", user: user.toJSON() });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.delete("/users/:id", authorize("superadmin"), async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
@@ -306,6 +344,56 @@ router.get("/stats", authorize("superadmin", "subadmin"), async (req, res) => {
       ]);
 
     res.json({ totalCompanies, totalUsers, totalAssets, totalRisks, pendingPayments, pendingCompanies, pendingUsers });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== RESOURCE ALLOCATION ==========
+
+router.get("/companies/resources", authorize("superadmin"), async (req, res) => {
+  try {
+    const companies = await Company.find().sort({ name: 1 });
+    
+    // For each company, get current usage stats
+    const resourceStats = await Promise.all(companies.map(async (company) => {
+      const currentUsers = await User.countDocuments({ companyId: company._id });
+      const currentAssets = await Asset.countDocuments({ companyId: company._id });
+      
+      return {
+        companyId: company._id,
+        companyName: company.name,
+        maxUsers: company.allocatedResources?.maxUsers || 0,
+        maxAssets: company.allocatedResources?.maxAssets || 0,
+        maxStorageGB: company.allocatedResources?.maxStorageGB || 0,
+        currentUsers,
+        currentAssets,
+        usedStorage: 0 // Placeholder for now
+      };
+    }));
+
+    res.json(resourceStats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch("/companies/:id/resources", authorize("superadmin"), async (req, res) => {
+  try {
+    const { maxUsers, maxAssets, maxStorageGB } = req.body;
+    
+    const company = await Company.findByIdAndUpdate(
+      req.params.id,
+      {
+        "allocatedResources.maxUsers": maxUsers,
+        "allocatedResources.maxAssets": maxAssets,
+        "allocatedResources.maxStorageGB": maxStorageGB
+      },
+      { new: true }
+    );
+
+    if (!company) return res.status(404).json({ error: "Company not found" });
+    res.json({ message: "Resources updated successfully", company });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

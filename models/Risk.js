@@ -36,7 +36,7 @@ function applyRiskCalculations(target) {
 
 const riskSchema = new mongoose.Schema(
   {
-    riskId: { type: String, unique: true, required: true },
+    riskId: { type: String, required: true },
     companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company" },
     name: { type: String, required: true },
     controlReference: { type: String },
@@ -120,7 +120,7 @@ const riskSchema = new mongoose.Schema(
 // Auto-generate riskId & calculations
 riskSchema.pre("validate", async function (next) {
   if (!this.riskId) {
-    const count = await mongoose.model("Risk").countDocuments();
+    const count = await mongoose.model("Risk").countDocuments({ companyId: this.companyId });
     this.riskId = `R-${String(count + 1).padStart(3, "0")}`;
   }
 

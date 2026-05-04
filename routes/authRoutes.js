@@ -5,7 +5,7 @@ const router = express.Router();
 const User = require("../models/User");
 const Company = require("../models/Company");
 const { authenticate, JWT_SECRET, DEFAULT_CLIENT_MODULES } = require("../middleware/auth");
-const { sendOSARegistrationNotification } = require("../utils/emailService");
+const { sendOSARegistrationNotification, sendRegistrationWelcomeEmail } = require("../utils/emailService");
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -62,7 +62,28 @@ router.post("/register", async (req, res) => {
 // POST /api/auth/company-register
 router.post("/company-register", async (req, res) => {
   try {
-    const { name, email, password, companyName, companyEmail, companyPhone, companyAddress, accountType } = req.body;
+    const { name, email, password, companyName, companyPhone, companyAddress, accountType } = req.body;
+
+    // --- STRICT VALIDATION ---
+    if (!name || !email || !password || (!companyName && accountType !== 'individual')) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    // Phone validation (10 digits)
+    if (companyPhone && !/^\d{10}$/.test(companyPhone.replace(/\D/g, ""))) {
+      return res.status(400).json({ error: "Phone number must be exactly 10 digits" });
+    }
+
+    // Password strength
+    if (password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    }
 
     const existing = await User.findOne({ email });
     if (existing) {
@@ -85,7 +106,7 @@ router.post("/company-register", async (req, res) => {
       name: companyName || name,
       slug,
       accountType: accountType || "company",
-      email: companyEmail || email,
+      email: email, // Single email field used
       phone: companyPhone,
       address: companyAddress,
       isApproved: false,
@@ -111,11 +132,20 @@ router.post("/company-register", async (req, res) => {
 
     // Notify OSA Super Admin
     const adminLoginUrl = `${process.env.FRONTEND_URL}/osa/superadmin/login`;
-    try {
-      await sendOSARegistrationNotification(company.name, company.email, company.accountType, adminLoginUrl);
-    } catch (e) {
-      console.error("OSA notification email failed:", e.message);
-    }
+    
+    // Send immediate welcome email to company & notification to OSA (non-blocking)
+    const Notification = require("../models/Notification");
+    Promise.all([
+      sendRegistrationWelcomeEmail(company.email, company.name),
+      sendOSARegistrationNotification(company.name, company.email, company.accountType, adminLoginUrl),
+      new Notification({
+        title: "New Registration Request",
+        message: `${company.name} (${company.accountType}) has just registered.`,
+        type: "registration",
+        link: "/osa/superadmin/dashboard",
+        companyId: company._id
+      }).save()
+    ]).catch(e => console.error("Email/Notification notifications failed:", e.message));
 
     res.status(201).json({
       message: "Registration successful. Please complete payment. OSA Super Admin will approve your account.",
